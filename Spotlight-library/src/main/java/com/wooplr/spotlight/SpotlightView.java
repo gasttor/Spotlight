@@ -13,13 +13,11 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Typeface;
-import android.graphics.drawable.AnimatedVectorDrawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.support.annotation.Nullable;
 import android.support.graphics.drawable.AnimatedVectorDrawableCompat;
-import android.support.v4.content.ContextCompat;
 import android.support.v7.widget.AppCompatImageView;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -40,7 +38,6 @@ import com.wooplr.spotlight.shape.Circle;
 import com.wooplr.spotlight.shape.NormalLineAnimDrawable;
 import com.wooplr.spotlight.target.AnimPoint;
 import com.wooplr.spotlight.target.Target;
-import com.wooplr.spotlight.target.ViewTarget;
 import com.wooplr.spotlight.utils.SpotlightListener;
 import com.wooplr.spotlight.utils.Utils;
 
@@ -180,6 +177,7 @@ public class SpotlightView extends FrameLayout {
 
 
     private Typeface mTypeface = null;
+    private boolean speedStart;
 
 
     public SpotlightView(Context context) {
@@ -270,8 +268,8 @@ public class SpotlightView extends FrameLayout {
             case MotionEvent.ACTION_DOWN:
 
                 if (isTouchOnFocus && isPerformClick) {
-                    targetView.getView().setPressed(true);
-                    targetView.getView().invalidate();
+                    targetView.setPressed(true);
+                    targetView.invalidate();
                 }
 
                 return true;
@@ -280,11 +278,11 @@ public class SpotlightView extends FrameLayout {
                     dismiss();
 
                 if (isTouchOnFocus && isPerformClick) {
-                    targetView.getView().performClick();
-                    targetView.getView().setPressed(true);
-                    targetView.getView().invalidate();
-                    targetView.getView().setPressed(false);
-                    targetView.getView().invalidate();
+                    targetView.performClick();
+                    targetView.setPressed(true);
+                    targetView.invalidate();
+                    targetView.setPressed(false);
+                    targetView.invalidate();
                 }
 
                 return true;
@@ -305,18 +303,19 @@ public class SpotlightView extends FrameLayout {
      */
     private void show(final Activity activity) {
 
-        if (preferencesManager.isDisplayed(usageId))
+        Log.d("Tour", "1 show()."+usageId);
+        if (usageId != null && preferencesManager.isDisplayed(usageId)) {
+            if ( listener != null ) listener.onAborted(this, usageId);
             return;
-
+        }
         ((ViewGroup) activity.getWindow().getDecorView()).addView(this);
-
         setReady(true);
-
+        Log.d("Tour", "2 show()."+usageId);
         handler.postDelayed(new Runnable() {
                                 @Override
                                 public void run() {
+                                    Log.d("Tour", "P show()."+usageId);
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-
                                         if (isRevealAnimationEnabled)
                                             startRevealAnimation(activity);
                                         else {
@@ -327,7 +326,7 @@ public class SpotlightView extends FrameLayout {
                                     }
                                 }
                             }
-                , 100);
+                , 50);
 
     }
 
@@ -335,7 +334,7 @@ public class SpotlightView extends FrameLayout {
      * Dissmiss view with reverse animation
      */
     private void dismiss() {
-        preferencesManager.setDisplayed(usageId);
+        if ( usageId != null ) preferencesManager.setDisplayed(usageId);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             if (isRevealAnimationEnabled)
                 exitRevealAnimation();
@@ -357,6 +356,8 @@ public class SpotlightView extends FrameLayout {
     private void startRevealAnimation(final Activity activity) {
 
         float finalRadius = (float) Math.hypot(getWidth(), getHeight());
+        if ( activity.isFinishing() || !this.isAttachedToWindow()) return;
+        // XXX detached view detection?
         Animator anim = ViewAnimationUtils.createCircularReveal(this, targetView.getPoint().x, targetView.getPoint().y, 0, finalRadius);
         anim.setInterpolator(AnimationUtils.loadInterpolator(activity,
                 android.R.interpolator.fast_out_linear_in));
@@ -402,31 +403,23 @@ public class SpotlightView extends FrameLayout {
         anim.setInterpolator(AnimationUtils.loadInterpolator(getContext(),
                 android.R.interpolator.accelerate_decelerate));
         anim.setDuration(introAnimationDuration);
-
         anim.addListener(new Animator.AnimatorListener() {
             @Override
             public void onAnimationStart(Animator animator) {
 
             }
-
             @Override
             public void onAnimationEnd(Animator animator) {
                 setVisibility(GONE);
                 removeSpotlightView();
-
             }
-
             @Override
             public void onAnimationCancel(Animator animator) {
-
             }
-
             @Override
             public void onAnimationRepeat(Animator animator) {
-
             }
         });
-
         anim.start();
     }
 
@@ -480,9 +473,7 @@ public class SpotlightView extends FrameLayout {
 
             }
         });
-
         startAnimation(fadeIn);
-
     }
 
     /**
@@ -524,19 +515,11 @@ public class SpotlightView extends FrameLayout {
 
         PorterDuffColorFilter porterDuffColorFilter = new PorterDuffColorFilter(lineAndArcColor,
                 PorterDuff.Mode.SRC_ATOP);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            AnimatedVectorDrawable avd = (AnimatedVectorDrawable)
-                    ContextCompat.getDrawable(activity, R.drawable.avd_spotlight_arc);
-            avd.setColorFilter(porterDuffColorFilter);
-            mImageView.setImageDrawable(avd);
-            avd.start();
-        } else {
-            AnimatedVectorDrawableCompat avdc =
-                    AnimatedVectorDrawableCompat.create(activity, R.drawable.avd_spotlight_arc);
-            avdc.setColorFilter(porterDuffColorFilter);
-            mImageView.setImageDrawable(avdc);
-            avdc.start();
-        }
+        AnimatedVectorDrawableCompat avdc =
+                AnimatedVectorDrawableCompat.create(activity, R.drawable.avd_spotlight_arc);
+        avdc.setColorFilter(porterDuffColorFilter);
+        mImageView.setImageDrawable(avdc);
+        avdc.start();
 
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
@@ -790,7 +773,7 @@ public class SpotlightView extends FrameLayout {
      */
     private void removeSpotlightView() {
         if (listener != null)
-            listener.onUserClicked(usageId);
+            listener.onUserClicked(this, usageId);
 
         if (getParent() != null)
             ((ViewGroup) getParent()).removeView(this);
@@ -867,7 +850,7 @@ public class SpotlightView extends FrameLayout {
         this.circleShape = circleShape;
     }
 
-    public void setTargetView(Target targetView) {
+    public void setTarget(Target targetView) {
         this.targetView = targetView;
     }
 
@@ -973,8 +956,8 @@ public class SpotlightView extends FrameLayout {
         }
 
 
-        public Builder target(View view) {
-            spotlightView.setTargetView(new ViewTarget(view));
+        public Builder target(Target target) {
+            spotlightView.setTarget(target);
             return this;
         }
 
@@ -998,6 +981,8 @@ public class SpotlightView extends FrameLayout {
             spotlightView.setUsageId(usageId);
             return this;
         }
+
+        public String getUsageId() { return spotlightView.usageId; }
 
         public Builder setTypeface(Typeface typeface) {
             spotlightView.setTypeface(typeface);
@@ -1104,6 +1089,13 @@ public class SpotlightView extends FrameLayout {
             return spotlightView;
         }
 
+        public void setSpeedStart() {
+            spotlightView.setSpeedStart();
+        }
+    }
+
+    private void setSpeedStart() {
+        speedStart = true;
     }
 
 

@@ -10,14 +10,14 @@ import android.graphics.Color;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
-import android.view.View;
 
 import com.wooplr.spotlight.SpotlightConfig;
 import com.wooplr.spotlight.SpotlightView;
 import com.wooplr.spotlight.prefs.PreferencesManager;
+import com.wooplr.spotlight.target.Target;
 
 import java.util.LinkedList;
-import java.util.Queue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Class responsible for performing a sequence of
@@ -25,12 +25,21 @@ import java.util.Queue;
  */
 public class SpotlightSequence {
 
-    private Activity activity;
+    private final Activity activity;
+    private final LinkedList<SpotlightView.Builder> queue;
+    private final  AtomicBoolean running = new AtomicBoolean(false);
+    private final SpotlightListener listener = new SpotlightListener() {
+        @Override public void onUserClicked(SpotlightView l, String s) {
+            playNext(l);
+        }
+        @Override public void onAborted(SpotlightView l, String s) {
+            playNext(l);
+        }
+    };
     private SpotlightConfig config;
-    private Queue<SpotlightView.Builder> queue;
 
-    private static SpotlightSequence instance;
     private final String TAG = "Tour Sequence";
+    private final PreferencesManager pm;
 
     /**
      * Creates an instance of SpotlightSequence
@@ -38,24 +47,12 @@ public class SpotlightSequence {
      * @param activity where this sequence will be executed
      * @param config {@link SpotlightConfig}
      */
-    private SpotlightSequence(Activity activity, SpotlightConfig config){
+    public SpotlightSequence(Activity activity, SpotlightConfig config){
         Log.d(TAG,"NEW TOUR_SEQUENCE INSTANCE");
         this.activity = activity;
         setConfig(config);
         queue = new LinkedList<>();
-    }
-
-    /**
-     * Retriebes the current instance of SpotlightSequence
-     * @param activity where this sequence will be executed
-     * @param config {@link SpotlightConfig}
-     * @return If no instance was found. {@link SpotlightSequence()} will be called.
-     */
-    public static SpotlightSequence getInstance(Activity activity, SpotlightConfig config){
-        if(instance == null){
-            instance = new SpotlightSequence(activity,config);
-        }
-        return instance;
+        pm = new PreferencesManager(activity);
     }
 
     /**
@@ -66,23 +63,28 @@ public class SpotlightSequence {
      *                 * @param usageId id used to store the SpotlightView in {@link PreferencesManager}
      * @return SpotlightSequence instance
      */
-    public SpotlightSequence addSpotlight(View target, String title, String subtitle, String usageId){
-        Log.d(TAG, "Adding " + usageId);
+    public SpotlightSequence addSpotlight(@NonNull Target target, CharSequence title, CharSequence subtitle, String usageId){
+        // Try to avoid work based on no repeat logic
+        if ( usageId != null ) {
+            if ( pm.isDisplayed(usageId)) return this;
+            for (SpotlightView.Builder sb : queue) {
+                if (usageId.equals(sb.getUsageId()) ) {
+                    Log.d(TAG, "skip duplicate "+usageId+" #"+queue.size());
+                    return this;
+                }
+            }
+        }
+        Log.d(TAG, "Adding " + usageId+" "+queue.size());
         SpotlightView.Builder builder = new SpotlightView.Builder(activity)
                 .setConfiguration(config)
                 .headingTvText(title)
                 .usageId(usageId)
                 .subHeadingTvText(subtitle)
                 .target(target)
-                .setListener(new SpotlightListener() {
-                    @Override
-                    public void onUserClicked(String s) {
-                        playNext();
-                    }
-                })
+                .setListener(listener)
                 .enableDismissAfterShown(true);
         queue.add(builder);
-        return instance;
+        return this;
     }
 
     /**
@@ -93,33 +95,21 @@ public class SpotlightSequence {
      * @param usageId id used to store the SpotlightView in {@link PreferencesManager}
      * @return SpotlightSequence instance
      */
-    public SpotlightSequence addSpotlight(@NonNull View target, int titleResId, int subTitleResId, String usageId){
+    public SpotlightSequence addSpotlight(@NonNull Target target, int titleResId, int subTitleResId, String usageId){
         String title = activity.getString(titleResId);
         String subtitle = activity.getString(subTitleResId);
-        SpotlightView.Builder builder = new SpotlightView.Builder(activity)
-                .setConfiguration(config)
-                .headingTvText(title)
-                .usageId(usageId)
-                .subHeadingTvText(subtitle)
-                .target(target)
-                .setListener(new SpotlightListener() {
-                    @Override
-                    public void onUserClicked(String s) {
-                        playNext();
-                    }
-                })
-                .enableDismissAfterShown(true);
-        queue.add(builder);
-        return instance;
+        return addSpotlight(target, title, subtitle, usageId);
     }
 
     /**
      * Starts the sequence.
      */
     public void startSequence(){
+        Log.d(TAG, "startSequence() -> "+running.get()+" "+queue.size());
         if(queue.isEmpty()) {
             Log.d(TAG, "EMPTY SEQUENCE");
-        }else{
+            running.set(false);
+        }else if ( running.compareAndSet(false,true) ){
             queue.poll().show();
         }
     }
@@ -127,26 +117,26 @@ public class SpotlightSequence {
     /**
      * Free variables. Executed when the tour has finished
      */
-    private void resetTour() {
-        instance = null;
+    public void clear() {
         queue.clear();
-        this.activity = null;
-        config = null;
+        running.set(false);
     }
 
     /**
      * Executes the next Spotlight animation in the queue.
      * If no more animations are found, resetTour()is called.
+     * @param l
      */
-    private void playNext(){
+    private void playNext(SpotlightView l){
+        Log.d(TAG,"PLAYING NEXT SPOTLIGHT "+running.get()+" "+queue.size());
         SpotlightView.Builder next = queue.poll();
         if(next != null){
-//            Log.d(TAG,"PLAYING NEXT SPOTLIGHT");
+            next.setSpeedStart();
             next.show().setReady(true);
-
+            // l.invalidate(); // can we limit close animation?
         }else {
             Log.d(TAG, "END OF QUEUE");
-            resetTour();
+            running.set(false);
         }
     }
 

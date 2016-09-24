@@ -9,7 +9,8 @@ import android.view.View;
  */
 public class ViewTarget implements Target {
 
-    private View view;
+    private final View view;
+    private final int[] location = new int[2];
 
 
     public ViewTarget(View view) {
@@ -18,15 +19,12 @@ public class ViewTarget implements Target {
 
     @Override
     public Point getPoint() {
-
-        int[] location = new int[2];
         view.getLocationInWindow(location);
         return new Point(location[0] + (view.getWidth() / 2), location[1] + (view.getHeight() / 2));
     }
 
     @Override
     public Rect getRect() {
-        int[] location = new int[2];
         view.getLocationInWindow(location);
         return new Rect(
                 location[0],
@@ -34,11 +32,6 @@ public class ViewTarget implements Target {
                 location[0] + view.getWidth(),
                 location[1] + view.getHeight()
         );
-    }
-
-    @Override
-    public View getView() {
-        return view;
     }
 
     @Override
@@ -70,4 +63,15 @@ public class ViewTarget implements Target {
     public int getViewHeight() {
         return view.getHeight();
     }
+
+    @Override
+    public void setPressed(boolean pressed) {
+        view.setPressed(pressed);
+    }
+
+    @Override
+    public void invalidate() { view.invalidate(); }
+
+    @Override
+    public boolean performClick() { return view.performClick(); }
 }

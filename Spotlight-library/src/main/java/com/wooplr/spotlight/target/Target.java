@@ -14,8 +14,6 @@ public interface Target {
 
     Rect getRect();
 
-    View getView();
-
     int getViewLeft();
 
     int getViewRight();
@@ -27,4 +25,10 @@ public interface Target {
     int getViewWidth();
 
     int getViewHeight();
+
+    void setPressed(boolean pressed);
+
+    void invalidate();
+
+    boolean performClick();
 }
