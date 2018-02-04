@@ -101,6 +101,10 @@ public class SpotlightSequence {
         return addSpotlight(target, title, subtitle, usageId);
     }
 
+    public boolean isShowing() {
+	return running.get() || (queue != null && queue.size() > 0);
+    }
+
     /**
      * Starts the sequence.
      */
@@ -170,5 +174,6 @@ public class SpotlightSequence {
         }
         this.config = config;
     }
+
 }
 

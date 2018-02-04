@@ -5,7 +5,7 @@ import android.content.SharedPreferences;
 
 public class PreferencesManager {
 
-    private static final String PREFERENCES_NAME = "spotlight_view_preferences";
+    public static final String PREFERENCES_NAME = "spotlight_view_preferences";
 
     private SharedPreferences sharedPreferences;
 
